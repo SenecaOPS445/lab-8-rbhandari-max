@@ -1,0 +1,66 @@
+---
+- name: Configure OPS445 Linux VM
+  hosts: all  # This assumes you've defined your VM in inventory file
+  become: true  # Enable sudo privileges for required tasks
+  vars:
+    seneca_id: rbhandari17@myseneca.ca  
+    labs_dir: "/home/{{ seneca_id }}/ops445"
+    lab_dirs:
+      - lab1
+      - lab2
+      - lab3
+      - lab4
+      - lab5
+      - lab6
+      - lab7
+      - lab8
+
+  tasks:
+    - name: Update Apache (httpd) package
+      yum:
+        name: httpd
+        state: latest
+
+    - name: Install EPEL repository if not already installed
+      yum:
+        name: epel-release
+        state: present
+
+    - name: Remove the 'tree' package
+      yum:
+        name: tree
+        state: absent
+
+    - name: Set hostname to Seneca ID
+      hostname:
+        name: "{{ seneca_id }}"
+
+    - name: Create user with Seneca ID
+      user:
+        name: "{{ seneca_id }}"
+        state: present
+        shell: /bin/bash
+        groups: wheel  # Provide sudo access via the 'wheel' group
+
+    - name: Configure SSH key-based authentication for new user
+      authorized_key:
+        user: "{{ seneca_id }}"
+        state: present
+        key: "{{ lookup('file', '/home/student/.ssh/id_rsa.pub') }}"  # Replace with your public SSH key
+
+    - name: Setup directories for labs using a loop
+      file:
+        path: "{{ labs_dir }}/{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ seneca_id }}"
+        group: "{{ seneca_id }}"
+      loop: "{{ lab_dirs }}"
+      when: seneca_id is defined  # Ensure Seneca ID is defined
+
+    - name: Ensure sudo access for user
+      lineinfile:
+        path: /etc/sudoers
+        line: "{{ seneca_id }}  ALL=(ALL) NOPASSWD: ALL"
+        validate: visudo -cf %s  # Validate syntax of sudoers file
+
